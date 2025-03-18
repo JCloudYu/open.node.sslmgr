@@ -96,7 +96,7 @@ Promise.chain(async()=>{
 			const {did} = req.session.info!;
 
 			if ( req.headers['x-proxy-from'] === 'nginx' ) {
-				return res.header('X-Accel-Redirect', `/pool/${did}/ssl.key`);
+				return res.header('X-Accel-Redirect', `/pool/${did}/ssl.key`).send();
 			}
 
 			const key = await fs.readFile(path.resolve(SSL_POOL_DIR, did, 'ssl.key'), 'utf-8');
@@ -107,7 +107,7 @@ Promise.chain(async()=>{
 			const {did} = req.session.info!;
 
 			if ( req.headers['x-proxy-from'] === 'nginx' ) {
-				return res.header('X-Accel-Redirect', `/pool/${did}/ssl.crt`);
+				return res.header('X-Accel-Redirect', `/pool/${did}/ssl.crt`).send();
 			}
 
 			const crt = await fs.readFile(path.resolve(SSL_POOL_DIR, did, 'ssl.crt'), 'utf-8');
@@ -118,7 +118,7 @@ Promise.chain(async()=>{
 			const {did} = req.session.info!;
 
 			if ( req.headers['x-proxy-from'] === 'nginx' ) {
-				return res.header('X-Accel-Redirect', `/pool/${did}/bundle.pem`);
+				return res.header('X-Accel-Redirect', `/pool/${did}/bundle.pem`).send();
 			}
 
 			const crt = await fs.readFile(path.resolve(SSL_POOL_DIR, did, 'bundle.pem'), 'utf-8');
