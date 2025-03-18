@@ -1,5 +1,4 @@
 #!/usr/bin/env tsx
-// @ts-nocheck
 import * as acme from 'acme-client';
 import * as fs from 'fs';
 import path from 'path';
@@ -37,7 +36,12 @@ import { inspect } from 'util';
 		client_key = fs.readFileSync('./client.key');
 	}
 	catch(e: unknown) {
-		if ( e instanceof Error && e.code !== 'ENOENT' ) throw e;
+		if ( e instanceof Error ) {
+			const err = e as Error&{code?:string};
+			if ( err.code !== 'ENOENT' ) {
+				throw e;
+			}
+		}
 		
 		console.log("No client.key found! Generating...");
 		client_key = await acme.crypto.createPrivateKey(4096);
@@ -48,7 +52,12 @@ import { inspect } from 'util';
 		crt_key = fs.readFileSync('./ssl.key');
 	}
 	catch(e: unknown) {
-		if ( e instanceof Error && e.code !== 'ENOENT' ) throw e;
+		if ( e instanceof Error ) {
+			const err = e as Error&{code?:string};
+			if ( err.code !== 'ENOENT' ) {
+				throw e;
+			}
+		}
 		
 		console.log("No ssl.key found! Generating...");
 		crt_key = await acme.crypto.createPrivateKey(4096);
