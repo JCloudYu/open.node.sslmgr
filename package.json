@@ -1,0 +1,26 @@
+{
+	"name": "open.node.ssl-refresher",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"keywords": [
+		"LetsEncrypt",
+		"FreeSSL",
+		"SSL"
+	],
+	"author": "JCloudYu",
+	"license": "ISC",
+	"dependencies": {
+		"@types/node": "^22.13.1",
+		"acme-client": "^5.0.0",
+		"beson": "^3.1.5",
+		"dotenv": "^16.4.7",
+		"extes": "^4.3.0",
+		"fastify": "^5.2.1",
+		"shstore": "^1.1.1",
+		"trimid": "^5.0.1"
+	}
+}

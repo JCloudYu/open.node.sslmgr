@@ -1,0 +1,17 @@
+@token=b85dljph14vffd0si0cju15ku3sm3aerkbdhbs1gg0o06034d5i0u00000o34kjqecs7ajaka5l4se9j89gg6039c5q0002037sfbma1c41g0rj2co000g0pv3qtigb10c06au3g00041ua4drd4200
+
+###
+GET http://127.0.0.1:63039/ssl HTTP/1.1
+Authorization: Bearer {{token}}
+
+###
+GET http://127.0.0.1:63039/ssl/key HTTP/1.1
+Authorization: Bearer {{token}}
+
+###
+GET http://127.0.0.1:63039/ssl/crt HTTP/1.1
+Authorization: Bearer {{token}}
+
+###
+GET http://127.0.0.1:63039/ssl/bundle HTTP/1.1
+Authorization: Bearer {{token}}
