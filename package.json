@@ -17,6 +17,7 @@
 		"@types/node": "^22.13.1",
 		"acme-client": "^5.0.0",
 		"beson": "^3.1.5",
+		"dayjs": "^1.11.13",
 		"dotenv": "^16.4.7",
 		"extes": "^4.3.0",
 		"fastify": "^5.2.1",
