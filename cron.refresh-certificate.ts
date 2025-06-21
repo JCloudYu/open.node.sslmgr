@@ -19,9 +19,27 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 		if ( itemName === '.' || itemName === '..' || !entry.isDirectory() ) continue;
 		const candidateDir = path.join(SSL_POOL_DIR, itemName);
 		const metaPath = path.join(candidateDir, 'meta.json');
-		const result = await fs.access(metaPath).catch((e)=>e);
-		if ( result instanceof Error ) continue;
-			
+		const metaContent = await fs.readFile(metaPath).catch((e:Error&{code?:string})=>e);
+		if ( metaContent instanceof Error ) {
+			console.error('Error reading meta file:', metaPath);
+			continue;
+		}
+		
+		const metaInfo = JSONDecode<SSLMeta>(metaContent.toString('utf8'));
+		if ( !metaInfo ) {
+			console.error('Error parsing meta file:', metaPath);
+			continue;
+		}
+
+		if ( metaInfo.expiredDate ) {
+			const projExpiredDate = new Date(metaInfo.expiredDate);
+			const projExpiredTime = projExpiredDate.getTime();
+			if ( projExpiredTime <= Date.now() ) {
+				console.log(`Project \`${itemName}\` has been expired at ${dayjs(projExpiredDate).format('YYYY-MM-DD HH:mm')}! Skipping... ❌`);
+				continue;
+			}
+		}
+
 		projDirs.push({path:candidateDir, meta:metaPath, name:itemName});
 	}
 	
@@ -90,5 +108,15 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 		}
 
 		console.log(`${projDir} refreshed!`);
+	}
+
+
+	function JSONDecode<Type=any>(str:string):Type|undefined {
+		try {
+			return JSON.parse(str);
+		}
+		catch(e) {
+			return undefined;
+		}
 	}
 })();
