@@ -63,8 +63,8 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 			const cert = await fs.readFile(certPath);
 			const certInfo = acme.crypto.readCertificateInfo(cert);
 			const expiredTime = certInfo.notAfter.getTime();
-			const updateBoundary = Date.now() - 7 * 86400_000;
-			const isExpired = expiredTime >= updateBoundary;
+			const updateBoundary = Date.now() + 7 * 86400_000;
+			const isExpired = expiredTime <= updateBoundary;
 			
 			if (!isExpired) {
 				console.log(`${paddedDirName}: ${dayjs(expiredTime).format('YYYY-MM-DD HH:mm')}. Passed! ✅`);
