@@ -107,7 +107,7 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 			continue;
 		}
 
-		console.log(`${projDir} refreshed!`);
+		console.log(`${projDir.path} refreshed!`);
 	}
 
 
