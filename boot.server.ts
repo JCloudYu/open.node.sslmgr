@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import path from "path";
 import * as acme from 'acme-client';
 import fs from "fs/promises";
+import Database from "better-sqlite3";
 
 import Helper from "@/lib/helper.js";
 import {LogTool, ContextCtrl} from "@/env.runtime.js";
@@ -39,7 +40,11 @@ Promise.chain(async()=>{
 	}
 
 
+	// Connect to database
+	const SESSION_DB_PATH = path.resolve(__dirname, process.env.SQLITE_PATH||'./db.sqlite3');
+	const SessionDB = new Database(SESSION_DB_PATH);
 
+	
 	const fastify = Fastify()
 	.addHook('onRequest', async(req)=>{
 		req.time = Math.floor((req.time_milli = Date.now())/1000);
@@ -52,12 +57,21 @@ Promise.chain(async()=>{
 		if ( (type||'').lowerCase !== "bearer" ) return;
 		const content = BWT.decode<AuthSession>(token||'');
 		if ( !content ) return;
-		if ( req.time < content.nbf  || req.time > content.exp ) return;
+		if ( req.time < content.nbf ) return;
+		if ( content.exp > 0 && req.time > content.exp ) return;
+
+
+
+		const stmt = SessionDB.prepare<[string], {valid:number; expired:epoch;}>(
+			"SELECT valid, expired FROM sessions WHERE key = ? LIMIT 1;"
+		);
+		const session = stmt.get(content.jti);
+		if ( !session || !session.valid ) return;
 
 
 
 		Object.assign(req.session, {
-			valid:true, info:content
+			valid:true, info:content, expired:session.expired
 		});
 	})
 	.register(async(fastify)=>{
@@ -143,5 +157,8 @@ Promise.chain(async()=>{
 		port:parseInt(process.env.BIND_PORT!)
 	});
 	LogTool.info(`Server is now listening on ${info}!`);
-	ContextCtrl.final(()=>fastify.close());
+	ContextCtrl.final(()=>{
+		SessionDB.close();
+		fastify.close();
+	});
 });

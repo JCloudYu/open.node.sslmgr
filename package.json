@@ -15,9 +15,11 @@
 	"author": "JCloudYu",
 	"license": "ISC",
 	"dependencies": {
+		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "^22.13.1",
 		"acme-client": "^5.0.0",
 		"beson": "^3.1.5",
+		"better-sqlite3": "^12.5.0",
 		"dayjs": "^1.11.13",
 		"dotenv": "^16.4.7",
 		"extes": "^4.3.0",

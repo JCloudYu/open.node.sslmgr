@@ -10,3 +10,4 @@ Thumbs.db
 /managed
 /pool/*
 !/pool/ANCHOR.md
+/db.sqlite3
