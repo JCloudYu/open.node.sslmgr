@@ -15,7 +15,7 @@
 	"author": "JCloudYu",
 	"license": "ISC",
 	"pnpm": {
-		"allowedBuildScripts": [
+		"onlyBuiltDependencies": [
 			"better-sqlite3"
 		]
 	},
