@@ -8,14 +8,19 @@ import dotenv from "dotenv";
 
 dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 
-(async()=>{
+
+const runAsScript = require.main === module;
+
+export async function initDb() {
 	const DB_PATH = path.resolve(__dirname, process.env.SQLITE_PATH||'./db.sqlite3');
 	const db_dir = path.dirname(DB_PATH);
 
 	try {
 		await fs.access(DB_PATH);
-		LogTool.info(`Session database already exists at ${DB_PATH}`);
-		return;
+		if ( runAsScript ) {
+			LogTool.info(`Session database already exists at ${DB_PATH}`);
+		}
+		return true;
 	}
 	catch {
 		// File does not exist; continue to create
@@ -27,6 +32,7 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 	}
 	catch {
 		// Ignore if directory already exists or cannot be created
+		throw new Error(`Unable to create database directory: ${db_dir}`);
 	}
 
 
@@ -46,7 +52,16 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 	`);
 	db.close();
 
-	LogTool.info(`Session database initialized at ${DB_PATH}`);
-})(); 
+	if ( runAsScript ) {
+		LogTool.info(`Session database initialized at ${DB_PATH}`);
+	}
+	return true;
+}
 
 
+if ( runAsScript ) {
+	initDb().catch((e)=>{
+		console.error("Failed to initialize database:", e);
+		process.exit(1);
+	});
+}

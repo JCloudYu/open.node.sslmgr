@@ -40,6 +40,9 @@ Promise.chain(async()=>{
 	}
 
 
+	await import('@/script.init-db.js').then(({initDb})=>initDb());
+
+
 	// Connect to database
 	const SESSION_DB_PATH = path.resolve(__dirname, process.env.SQLITE_PATH||'./db.sqlite3');
 	const SessionDB = new Database(SESSION_DB_PATH);
