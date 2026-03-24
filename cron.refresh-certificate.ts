@@ -12,7 +12,7 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 (async()=>{
 	const SSL_POOL_DIR = path.resolve(__dirname, process.env.SSL_POOL_DIR||'./pool');
 	const entries = await fs.readdir(SSL_POOL_DIR, { withFileTypes: true });
-	const projDirs:{path:string, meta:string, name:string}[] = [];
+	const projDirs:{path:string, meta:string, name:string, metaExpiredDate?:string|null}[] = [];
 	
 	for (const entry of entries) {
 		const itemName = entry.name;
@@ -31,24 +31,23 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 			continue;
 		}
 
-		if ( metaInfo.expiredDate ) {
-			const projExpiredDate = new Date(metaInfo.expiredDate);
-			const projExpiredTime = projExpiredDate.getTime();
-			if ( projExpiredTime <= Date.now() ) {
-				console.log(`Project \`${itemName}\` has been expired at ${dayjs(projExpiredDate).format('YYYY-MM-DD HH:mm')}! Skipping... ❌`);
-				continue;
-			}
-		}
-
-		projDirs.push({path:candidateDir, meta:metaPath, name:itemName});
+		projDirs.push({
+			path:candidateDir,
+			meta:metaPath,
+			name:itemName,
+			metaExpiredDate: metaInfo.expiredDate
+		});
 	}
 	
 	
 	const padding = projDirs.reduce((max, projDir) => Math.max(max, projDir.name.length), 0);
 	for(const projDir of projDirs) {
+		const paddedDirName = projDir.name.padEnd(padding, ' ');
+		const metaExpiredDate = projDir.metaExpiredDate;
+		const hasNoExpiredLimit = metaExpiredDate === null || metaExpiredDate === undefined || metaExpiredDate === 'permanently';
+
 		const certPath = path.join(projDir.path, 'ssl.crt');
 		const accState = await fs.access(certPath).catch((e)=>e);
-		const paddedDirName = projDir.name.padEnd(padding, ' ');
 		if ( accState instanceof Error ) {
 			const error = accState as Error & {code?:string};
 			if ( error.code !== 'ENOENT' ) {
@@ -67,11 +66,19 @@ dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
 			const isExpired = expiredTime <= updateBoundary;
 			
 			if (!isExpired) {
-				console.log(`${paddedDirName}: ${dayjs(expiredTime).format('YYYY-MM-DD HH:mm')}. Passed! ✅`);
+				console.log(`${paddedDirName}: ${dayjs(expiredTime).format('YYYY-MM-DD HH:mm:ss')} - Passed! ✅`);
 				continue;
 			}
+			else
+			if ( !hasNoExpiredLimit ) {
+				const expiredAt = dayjs(metaExpiredDate);
+				if ( !expiredAt.isValid() || expiredAt.isBefore(dayjs()) ) {
+					console.log(`${paddedDirName}: ${dayjs(expiredTime).format('YYYY-MM-DD HH:mm:ss')} - Expired... ⚠️`);
+					continue;
+				}
+			}
 			else {
-				console.log(`${paddedDirName}: ${dayjs(expiredTime).format('YYYY-MM-DD HH:mm:ss')}. Refreshing... ❌`);
+				console.log(`${paddedDirName}: ${dayjs(expiredTime).format('YYYY-MM-DD HH:mm:ss')} - Refreshing... ❌`);
 			}
 		}
 
