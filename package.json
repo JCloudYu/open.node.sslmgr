@@ -5,7 +5,8 @@
 	"main": "index.js",
 	"scripts": {
 		"start": "tsx boot.server.ts",
-		"refresh": "tsx cron.refresh-certificate.ts"
+		"refresh": "tsx cron.refresh-certificate.ts",
+		"auto-refresh": "tsx boot.auto-refresh.ts"
 	},
 	"keywords": [
 		"LetsEncrypt",

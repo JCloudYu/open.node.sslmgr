@@ -16,7 +16,7 @@ import {ErrorCode} from "@/lib/error-code.js";
 
 
 
-dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
+dotenv.config({path:['.env', '.env.prod', '.env.local'], override:true});
 const STORAGE_DIR = path.resolve(__dirname, process.env.STORAGE_DIR!);
 
 Promise.chain(async()=>{
