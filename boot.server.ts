@@ -5,6 +5,9 @@ import path from "path";
 import crypto from "node:crypto";
 import * as acme from 'acme-client';
 import fs from "fs/promises";
+import {createWriteStream} from "node:fs";
+import child from "node:child_process";
+import dayjs from "dayjs";
 
 import Helper from "@/lib/helper.js";
 import {LogTool, ContextCtrl} from "@/env.runtime.js";
@@ -135,7 +138,58 @@ Promise.chain(async()=>{
 	});
 	
 	LogTool.info(`Server is now listening on ${info}!`);
+
+
+
+	const CRON_LOG_DIR = '/var/log/sslmgr';
+	let cronTimer:NodeJS.Timeout|undefined;
+	let cronProc:child.ChildProcess|undefined;
+	ScheduleRefresh();
+
 	ContextCtrl.final(()=>{
+		clearTimeout(cronTimer);
+		cronProc?.kill();
 		fastify.close();
 	});
+
+
+
+	function ScheduleRefresh() {
+		const delay = dayjs().add(1, 'day').startOf('day').diff(dayjs());
+		cronTimer = setTimeout(async()=>{
+			ScheduleRefresh();
+
+			if ( cronProc ) {
+				LogTool.warn('Previous certificate refresh cron is still running! Skipping...');
+				return;
+			}
+
+			const mkdirResult = await fs.mkdir(CRON_LOG_DIR, {recursive:true}).catch((e:Error)=>e);
+			if ( mkdirResult instanceof Error ) {
+				LogTool.error('Unable to create cron log directory:', mkdirResult);
+				return;
+			}
+
+			const logPath = path.join(CRON_LOG_DIR, `refresh-${dayjs().format('YYYY-MM-DD')}.log`);
+			const logStream = createWriteStream(logPath, {flags:'a'});
+			logStream.write(`===== ${dayjs().format('YYYY-MM-DD HH:mm:ss')} =====\n`);
+			LogTool.info(`Running certificate refresh cron, output to ${logPath}...`);
+
+			cronProc = child.spawn('tsx', [path.join(__dirname, 'cron.refresh-certificate.ts')], {
+				cwd:__dirname, stdio:['ignore', 'pipe', 'pipe']
+			});
+			cronProc.stdout!.pipe(logStream, {end:false});
+			cronProc.stderr!.pipe(logStream, {end:false});
+			cronProc
+			.on('error', (e)=>{
+				logStream.write(`Error executing cron: ${e.message}\n`);
+				LogTool.error('Error executing certificate refresh cron:', e);
+			})
+			.on('close', (code, signal)=>{
+				cronProc = undefined;
+				logStream.end(`===== exited with ${code !== null ? `code ${code}` : `signal ${signal}`} =====\n\n`);
+				LogTool.info(`Certificate refresh cron finished! (code:${code}, signal:${signal})`);
+			});
+		}, delay);
+	}
 });
