@@ -7,17 +7,17 @@ import dotenv from "dotenv";
 import * as acme from 'acme-client';
 import dayjs from "dayjs";
 
-dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
+dotenv.config({path:['.env', '.env.prod', '.env.local'], override:true});
 
 (async()=>{
-	const SSL_POOL_DIR = path.resolve(__dirname, process.env.SSL_POOL_DIR||'./pool');
-	const entries = await fs.readdir(SSL_POOL_DIR, { withFileTypes: true });
+	const STORAGE_DIR = path.resolve(__dirname, process.env.STORAGE_DIR!);
+	const entries = await fs.readdir(STORAGE_DIR, { withFileTypes: true });
 	const projDirs:{path:string, meta:string, name:string, metaExpiredDate?:string|null}[] = [];
 	
 	for (const entry of entries) {
 		const itemName = entry.name;
 		if ( itemName === '.' || itemName === '..' || !entry.isDirectory() ) continue;
-		const candidateDir = path.join(SSL_POOL_DIR, itemName);
+		const candidateDir = path.join(STORAGE_DIR, itemName);
 		const metaPath = path.join(candidateDir, 'meta.json');
 		const metaContent = await fs.readFile(metaPath).catch((e:Error&{code?:string})=>e);
 		if ( metaContent instanceof Error ) {

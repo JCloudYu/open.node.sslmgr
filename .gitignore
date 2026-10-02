@@ -3,11 +3,9 @@ Thumbs.db
 
 .vscode
 .idea
+.env.*
 
 /node_modules
-
-/config.ts
-/managed
-/pool/*
-!/pool/ANCHOR.md
-/db.sqlite3
+/_legacy
+/storage
+/pool

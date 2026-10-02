@@ -2,20 +2,19 @@ import "extes";
 import Fastify from "fastify";
 import dotenv from "dotenv";
 import path from "path";
+import crypto from "node:crypto";
 import * as acme from 'acme-client';
 import fs from "fs/promises";
-import Database from "better-sqlite3";
 
 import Helper from "@/lib/helper.js";
 import {LogTool, ContextCtrl} from "@/env.runtime.js";
-import BWT from "@/lib/bwt.js";
 import {ErrorCode} from "@/lib/error-code.js";
 
 
 
 
 dotenv.config({path:['.env', '.env.local', '.env.prod'], override:true});
-const SSL_POOL_DIR = path.resolve(__dirname, process.env.SSL_POOL_DIR||'./pool');
+const STORAGE_DIR = path.resolve(__dirname, process.env.STORAGE_DIR!);
 
 Promise.chain(async()=>{
 	// Bind core events
@@ -40,63 +39,59 @@ Promise.chain(async()=>{
 	}
 
 
-	await import('@/script.init-db.js').then(({initDb})=>initDb());
-
-
-	// Connect to database
-	const SESSION_DB_PATH = path.resolve(__dirname, process.env.SQLITE_PATH||'./db.sqlite3');
-	const SessionDB = new Database(SESSION_DB_PATH);
-
-	
 	const fastify = Fastify()
-	.addHook('onRequest', async(req)=>{
-		req.time = Math.floor((req.time_milli = Date.now())/1000);
-		req.session = {
-			valid:false
-		};
-	})
-	.addHook('onRequest', async(req)=>{
-		const [type, token] = (req.headers['authorization']||'').split(' ').map((i)=>i.trim()).filter((i)=>i!=='');
-		if ( (type||'').lowerCase !== "bearer" ) return;
-		const content = BWT.decode<AuthSession>(token||'');
-		if ( !content ) return;
-		if ( req.time < content.nbf ) return;
-		if ( content.exp > 0 && req.time > content.exp ) return;
-
-
-
-		const stmt = SessionDB.prepare<[string], {valid:number; expired:epoch;}>(
-			"SELECT valid, expired FROM sessions WHERE key = ? LIMIT 1;"
-		);
-		const session = stmt.get(content.jti);
-		if ( !session || !session.valid ) return;
-
-
-
-		Object.assign(req.session, {
-			valid:true, info:content, expired:session.expired
-		});
-	})
 	.register(async(fastify)=>{
 		fastify.addHook('onRequest', async(req, reply)=>{
-			if ( !req.session.valid ) {
-				return reply.code(401).send({
-					code: ErrorCode.UNAUTHORIZED_ACCESS,
-					message: "Your not authorized to access this api!"
-				});
+			const {poolKey} = req.params as {poolKey?:string;};
+			const given = (req.headers.authorization||'').trim();
+			const entries = await fs.readdir(STORAGE_DIR, {withFileTypes:true}).catch(()=>[]);
+			if (
+				!poolKey || !entries.some((entry)=>entry.isDirectory() && entry.name === poolKey)
+			) {
+				return reply.code(401).send();
+			}
+
+
+
+			const cert_dir = path.resolve(STORAGE_DIR, poolKey);
+			const given_sig = Buffer.from(given, 'base64url');
+			const key_pem = await fs.readFile(path.resolve(cert_dir, 'ssl.key')).catch(()=>null);
+			if ( !key_pem ) {
+				return reply.code(401).send();
+			}
+
+			const now_otp = Math.floor(Date.now() / 10000);
+			let matched = false;
+			try {
+				for (const ts of [now_otp, now_otp - 1]) {
+					const expected = crypto.createSign('RSA-SHA256')
+						.update(JSON.stringify({key:poolKey, ts}))
+						.sign({key:key_pem, padding:crypto.constants.RSA_PKCS1_PADDING});
+					if ( expected.length === given_sig.length && crypto.timingSafeEqual(expected, given_sig) ) {
+						matched = true;
+						break;
+					}
+				}
+			}
+			catch {
+				matched = false;
+			}
+
+			if ( !matched ) {
+				return reply.code(401).send();
 			}
 		});
 
-		fastify.get('/ssl', async(req, res)=>{
-			const {did} = req.session.info!;
-
-			const meta = await ReadMeta(did);
+		fastify.get('/ssl/:poolKey/info', async(req, res)=>{
+			const {poolKey} = req.params as {poolKey:string;};
+			const meta_raw = await fs.readFile(path.resolve(STORAGE_DIR, poolKey, 'meta.json'), 'utf-8');
+			const meta = Helper.JSONDecode<SSLMeta>(meta_raw);
 			if ( !meta ) return res.code(404).send({
 				code: ErrorCode.RESOURCE_NOT_FOUND,
 				message: "Invalid SSL meta!"
 			});
 
-			const cert = await fs.readFile(path.resolve(SSL_POOL_DIR, did, 'ssl.crt'), 'utf-8');
+			const cert = await fs.readFile(path.resolve(STORAGE_DIR, poolKey, 'ssl.crt'), 'utf-8');
 			const cert_info = acme.crypto.readCertificateInfo(cert);
 
 			return res.send({
@@ -109,49 +104,28 @@ Promise.chain(async()=>{
 			});
 		});
 
-		fastify.get('/ssl/key', async(req, res)=>{
-			const {did} = req.session.info!;
+		fastify.get('/ssl/:poolKey/crt', async(req, res)=>{
+			const {poolKey} = req.params as {poolKey:string;};
 
 			if ( req.headers['x-proxy-from'] === 'nginx' ) {
-				return res.header('X-Accel-Redirect', `/pool/${did}/ssl.key`).send();
+				return res.header('X-Accel-Redirect', `/storage/${poolKey}/ssl.crt`).send();
 			}
 
-			const key = await fs.readFile(path.resolve(SSL_POOL_DIR, did, 'ssl.key'), 'utf-8');
-			return res.header('Content-Type', 'application/x-pem-file').send(key);
-		});
-
-		fastify.get('/ssl/crt', async(req, res)=>{
-			const {did} = req.session.info!;
-
-			if ( req.headers['x-proxy-from'] === 'nginx' ) {
-				return res.header('X-Accel-Redirect', `/pool/${did}/ssl.crt`).send();
-			}
-
-			const crt = await fs.readFile(path.resolve(SSL_POOL_DIR, did, 'ssl.crt'), 'utf-8');
+			const crt = await fs.readFile(path.resolve(STORAGE_DIR, poolKey, 'ssl.crt'), 'utf-8');
 			return res.header('Content-Type', 'application/x-pem-file').send(crt);
 		});
 
-		fastify.get('/ssl/bundle', async(req, res)=>{
-			const {did} = req.session.info!;
+		fastify.get('/ssl/:poolKey/bundle', async(req, res)=>{
+			const {poolKey} = req.params as {poolKey:string;};
 
 			if ( req.headers['x-proxy-from'] === 'nginx' ) {
-				return res.header('X-Accel-Redirect', `/pool/${did}/bundle.pem`).send();
+				return res.header('X-Accel-Redirect', `/storage/${poolKey}/bundle.pem`).send();
 			}
 
-			const crt = await fs.readFile(path.resolve(SSL_POOL_DIR, did, 'bundle.pem'), 'utf-8');
+			const crt = await fs.readFile(path.resolve(STORAGE_DIR, poolKey, 'bundle.pem'), 'utf-8');
 			return res.header('Content-Type', 'application/x-pem-file').send(crt);
 		});
 	});
-
-	async function ReadMeta(did:string):Promise<SSLMeta|null> {
-		const META_DIR = path.resolve(SSL_POOL_DIR, did);
-
-		const meta = await fs.readFile(`${META_DIR}/meta.json`, 'utf-8');
-		const ssl_meta = Helper.JSONDecode<SSLMeta>(meta);
-		if ( !ssl_meta ) return null;
-
-		return ssl_meta;
-	}
 
 
 
@@ -159,9 +133,9 @@ Promise.chain(async()=>{
 		host:process.env.BIND_HOST!,
 		port:parseInt(process.env.BIND_PORT!)
 	});
+	
 	LogTool.info(`Server is now listening on ${info}!`);
 	ContextCtrl.final(()=>{
-		SessionDB.close();
 		fastify.close();
 	});
 });
