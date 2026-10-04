@@ -1,0 +1,12 @@
+.DS_Store
+Thumbs.db
+
+.vscode
+.idea
+.env.*
+
+/node_modules
+/_legacy
+/storage
+/pool
+/logs
